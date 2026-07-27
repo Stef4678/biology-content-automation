@@ -234,6 +234,7 @@ env/
 
 # Generated biology content
 proiect_biologie/articole/
+proiect_biologie/index_continut.csv
 proiect_biologie/raport_audit.txt
 proiect_biologie/statistici_articole.txt
 proiect_biologie/generated_branch_mapping.txt
