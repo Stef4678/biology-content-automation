@@ -118,14 +118,16 @@ It contains the following columns:
 
 | Script | Purpose |
 |---|---|
-| `retry_errors.py` | Regenerates articles marked with `Eroare` |
-| `inspect_missing_topics.py` | Resets selected missing topics to `Planificat` |
-| `add_planned_topics.py` | Adds manually defined article topics to the index |
-| `detect_similar_branches.py` | Detects branch and sub-branch names that differ only by normalization |
-| `merge_branches.py` | Applies branch mappings and moves article files |
-| `branch_merge_orchestrator.py` | Detects mappings, updates `merge_branches.py`, and runs branch merging |
-| `update_index_after_moves.py` | Synchronizes the CSV index after manual article moves |
-| `generate_statistics.py` | Creates a statistics report for article status and topic distribution |
+| `generator.py` | Main script: creates the initial content structure, generates articles, and automatically suggests new topics through an audit step. |
+| `orchestrator.py` | Runs the generator in cycles and automatically triggers retries for failed articles. |
+| `retry_errors.py` | Regenerates only the articles whose index status is `Eroare` (Error). |
+| `detect_similar_branches.py` | Detects similar branches and sub-branches, including differences caused by diacritics or parentheses. |
+| `branch_merge_orchestrator.py` | Runs similarity detection, extracts the proposed mappings, injects them into the merge script, and executes the merge. |
+| `merge_branches.py` | Merges branches and sub-branches according to mapping rules and moves article files into the correct directories. |
+| `update_index_after_moves.py` | Synchronizes branch names and article paths in the index after article files have been moved manually. |
+| `inspect_missing_topics.py` | Checks a manually maintained list of existing topics and resets matching entries from `Finalizat` (Completed) to `Planificat` (Planned) for regeneration. |
+| `add_planned_topics.py` | Adds entirely new topics manually to the index with `Planificat` (Planned) status while preventing duplicates. |
+| `generate_statistics.py` | Produces a statistics report with totals, statuses, branch distributions, and failed topics. |
 
 ## Commands
 
