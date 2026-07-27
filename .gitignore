@@ -216,3 +216,35 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Environment variables and secrets
+.env
+.env.*
+*.env
+*.key
+*.pem
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Generated biology content
+proiect_biologie/articole/
+proiect_biologie/raport_audit.txt
+proiect_biologie/statistici_articole.txt
+proiect_biologie/generated_branch_mapping.txt
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# IDE and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
