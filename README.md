@@ -2,7 +2,7 @@
 
 An automated Python pipeline for generating, indexing, validating, repairing, and organizing structured biology articles with the DeepSeek API.
 
-The project creates a hierarchical biology content plan, generates structured articles in Markdown format, tracks their status in a CSV index, retries failed requests, audits missing subjects, and provides maintenance tools for branch normalization and reporting.
+The project creates a hierarchical biology content plan, generates structured articles in Markdown-style text format, tracks their status in a CSV index, retries failed requests, audits the topic plan for gaps, and provides maintenance tools for branch normalization and reporting.
 
 ## Features
 
@@ -14,13 +14,13 @@ The project creates a hierarchical biology content plan, generates structured ar
 - Cleans malformed JSON responses before validation
 - Processes articles concurrently with up to four workers
 - Retries failed API calls with exponential backoff
-- Marks articles as `Planificat`, `Finalizat`, or `Eroare`
-- Retries failed articles with a dedicated recovery script
-- Detects missing topics and adds new topics to the content plan
+- Tracks article status as `Planificat`, `Finalizat`, or `Eroare`
+- Retries articles with `Eroare` status through a dedicated recovery script
+- Audits the existing plan and suggests new biology topics
 - Detects similar branch and sub-branch names
 - Merges duplicate branch names and updates file paths
-- Updates the index after manual file moves
-- Generates progress and error statistics
+- Updates the CSV index after manual file moves
+- Generates progress, distribution, and error statistics
 
 ## Project Structure
 
@@ -40,17 +40,17 @@ biology-content-automation/
 ├── README.md
 ├── .gitignore
 └── proiect_biologie/
-    └── index_continut.csv
+    └── .gitkeep
 ```
 
-Generated articles and reports are created automatically inside `proiect_biologie/`.
+Generated articles, the CSV index, and generated reports are created automatically inside `proiect_biologie/`. They are excluded from Git by default.
 
 ## Requirements
 
 - Python 3.10 or newer
 - A DeepSeek API key
 
-Install the dependencies:
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -72,39 +72,48 @@ $env:DEEPSEEK_API_KEY="your_deepseek_api_key"
 set DEEPSEEK_API_KEY=your_deepseek_api_key
 ```
 
-Do not hard-code the API key in the Python files and never upload it to GitHub.
+Do not hard-code the API key in Python files or upload it to GitHub.
 
 ## Quick Start
 
-Run the main generator:
+Set the API key, then run the main generator:
 
 ```bash
 python generator.py
 ```
 
-On the first run, the script creates:
+**Important:** on the first use, run `generator.py` before `orchestrator.py`.
+
+On the first run, `generator.py` creates:
 
 - `proiect_biologie/index_continut.csv`
-- A hierarchy of biology branches and article topics
+- A hierarchy of biology branches, sub-branches, and article topics
 - The `proiect_biologie/articole/` directory
+- Initial article files for topics marked as `Planificat`
 
-On later runs, it generates all topics marked as `Planificat` and then audits the index for missing topics.
+On later runs, it processes all topics marked as `Planificat`, updates their status, and audits the index for additional topic suggestions.
 
 ## Automated Workflow
 
-Use the main orchestrator to run the generator and retry failed articles for multiple cycles:
+After the first run has created `proiect_biologie/index_continut.csv`, run the orchestrator:
 
 ```bash
 python orchestrator.py
 ```
 
-The orchestrator runs `generator.py`, checks the CSV index, runs `retry_errors.py` when records have `Eroare` status, and stops when no planned or failed articles remain.
+The orchestrator:
+
+1. Reads the CSV index.
+2. Runs `generator.py` when planned topics exist.
+3. Runs `retry_errors.py` when records have `Eroare` status.
+4. Repeats the workflow for up to `MAX_CICLURI`.
+5. Stops when no planned or failed articles remain, or when `PRAG_TOTAL` is reached.
+
+If the CSV index does not exist yet, the orchestrator stops without running the generator. Run `python generator.py` first.
 
 ## Content Index
 
 The file `proiect_biologie/index_continut.csv` is the central data source for the pipeline.
-
-It contains the following columns:
 
 | Column | Description |
 |---|---|
@@ -114,68 +123,122 @@ It contains the following columns:
 | `Status` | `Planificat`, `Finalizat`, or `Eroare` |
 | `Cale_Fisier` | Relative path of the generated article |
 
+### Status Values
+
+| Status | Meaning |
+|---|---|
+| `Planificat` | The topic is waiting to be generated |
+| `Finalizat` | The article was generated successfully |
+| `Eroare` | Article generation failed and can be retried |
+
 ## Utility Scripts
 
 | Script | Purpose |
 |---|---|
-| `generator.py` | Main script: creates the initial content structure, generates articles, and automatically suggests new topics through an audit step. |
-| `orchestrator.py` | Runs the generator in cycles and automatically triggers retries for failed articles. |
-| `retry_errors.py` | Regenerates only the articles whose index status is `Eroare` (Error). |
-| `detect_similar_branches.py` | Detects similar branches and sub-branches, including differences caused by diacritics or parentheses. |
-| `branch_merge_orchestrator.py` | Runs similarity detection, extracts the proposed mappings, injects them into the merge script, and executes the merge. |
-| `merge_branches.py` | Merges branches and sub-branches according to mapping rules and moves article files into the correct directories. |
-| `update_index_after_moves.py` | Synchronizes branch names and article paths in the index after article files have been moved manually. |
-| `inspect_missing_topics.py` | Checks a manually maintained list of existing topics and resets matching entries from `Finalizat` (Completed) to `Planificat` (Planned) for regeneration. |
-| `add_planned_topics.py` | Adds entirely new topics manually to the index with `Planificat` (Planned) status while preventing duplicates. |
-| `generate_statistics.py` | Produces a statistics report with totals, statuses, branch distributions, and failed topics. |
+| `generator.py` | Main script: creates the initial content structure, generates planned articles, and suggests new topics through an audit step. |
+| `orchestrator.py` | Runs the generator in cycles and triggers retries for failed articles. Use it only after the initial generator run has created the CSV index. |
+| `retry_errors.py` | Regenerates only articles whose index status is `Eroare`. |
+| `inspect_missing_topics.py` | Checks a manually maintained list of existing topics and resets matching `Finalizat` entries to `Planificat` for regeneration. It does not discover or add new topics. |
+| `add_planned_topics.py` | Adds manually selected new topics to the CSV index with `Planificat` status while preventing duplicates. |
+| `detect_similar_branches.py` | Detects branch and sub-branch names that become equivalent after basic normalization, including diacritics and parentheses. |
+| `branch_merge_orchestrator.py` | Runs similarity detection, extracts proposed mappings, writes them to a report, injects mappings into `merge_branches.py`, and runs the merge. |
+| `merge_branches.py` | Applies branch/sub-branch mapping rules, updates CSV paths, and moves article files between branch folders. |
+| `update_index_after_moves.py` | Scans article folders and synchronizes branch names and file paths in the CSV index after manual file moves. |
+| `generate_statistics.py` | Produces a statistics report with article totals, statuses, branch distributions, folder counts, and failed topics. |
 
 ## Commands
 
-Generate or continue article creation:
+### Initialize or continue generation
 
 ```bash
 python generator.py
 ```
 
-Run the full generation and retry workflow:
+Use this command for the first run and whenever you want to generate all topics with `Planificat` status.
+
+### Run automated cycles
 
 ```bash
 python orchestrator.py
 ```
 
-Retry failed articles only:
+Run this only after `generator.py` has created `proiect_biologie/index_continut.csv`.
+
+### Retry failed articles
 
 ```bash
 python retry_errors.py
 ```
 
-Add manually selected topics:
+This processes only rows where `Status = Eroare`.
+
+### Add manual topics
+
+Edit the `SUBIECTE_NOI` list in `add_planned_topics.py`, then run:
 
 ```bash
 python add_planned_topics.py
 ```
 
-Generate statistics:
+Each entry requires a branch, a sub-branch, and an article topic:
+
+```python
+SUBIECTE_NOI = [
+    ("Genetica", "Genomica functionala", "Analiza variatiei genomice la primate"),
+]
+```
+
+The script adds non-duplicate topics to the index with `Status = Planificat`.
+
+### Regenerate selected topics
+
+Edit the `SUBIECTE_LIPSA` list in `inspect_missing_topics.py`, then run:
+
+```bash
+python inspect_missing_topics.py
+```
+
+The topic title must already exist exactly in `index_continut.csv`. Matching rows marked `Finalizat` are reset to `Planificat` so that `generator.py` can regenerate them.
+
+### Generate statistics
 
 ```bash
 python generate_statistics.py
 ```
 
-Detect and merge similar branches:
+This creates:
+
+```text
+proiect_biologie/statistici_articole.txt
+```
+
+### Detect similar branches
+
+```bash
+python detect_similar_branches.py
+```
+
+This prints suggested `RAMURA_MAP` and `SUBRAMURA_MAP` mappings based on normalized duplicate names.
+
+### Detect and merge similar branches
 
 ```bash
 python branch_merge_orchestrator.py
 ```
 
-Update the index after moving article files manually:
+This command automatically runs branch detection and merge operations.
+
+### Update the index after moves
 
 ```bash
 python update_index_after_moves.py
 ```
 
+Use this after manually moving article files between branch folders.
+
 ## Output
 
-The generator saves articles as text files in branch-specific folders:
+The generator stores article files in branch-specific folders:
 
 ```text
 proiect_biologie/
@@ -187,7 +250,11 @@ proiect_biologie/
         └── Comportamentul_social_la_corvide.txt
 ```
 
-It also creates these reports when relevant:
+Articles are saved as `.txt` files with Markdown-style headings.
+
+## Generated Reports
+
+The following files are created when their related scripts run:
 
 ```text
 proiect_biologie/
@@ -195,6 +262,10 @@ proiect_biologie/
 ├── statistici_articole.txt
 └── generated_branch_mapping.txt
 ```
+
+- `raport_audit.txt` lists new topics suggested during the generator audit.
+- `statistici_articole.txt` contains totals, status counts, branch distributions, folder counts, and failed topics.
+- `generated_branch_mapping.txt` stores branch and sub-branch mappings proposed by similarity detection.
 
 ## Configuration
 
@@ -207,21 +278,33 @@ MAX_WORKERS = 4
 ARTICLES_PAUSE_SECONDS = 0.5
 ```
 
-The main orchestrator can be configured with:
+The orchestrator configuration is:
 
 ```python
 MAX_CICLURI = 8
 PRAG_TOTAL = None
 ```
 
-Set `PRAG_TOTAL` to a number if you want to stop automation after reaching a target number of indexed articles.
+Set `PRAG_TOTAL` to a number to stop automation after the index reaches a target number of articles.
+
+## Recommended Workflow
+
+1. Set `DEEPSEEK_API_KEY`.
+2. Install dependencies with `pip install -r requirements.txt`.
+3. Run `python generator.py` once to initialize the project.
+4. Run `python orchestrator.py` for multi-cycle generation and automatic error recovery.
+5. Run `python generate_statistics.py` to review progress.
+6. Use `add_planned_topics.py` to add your own topics.
+7. Use branch maintenance scripts only after backing up or committing your current work.
 
 ## Safety Notes
 
 - Keep `DEEPSEEK_API_KEY` private.
-- Generated articles and reports are excluded from Git by default.
+- Generated content, the CSV index, and reports are excluded from Git by default.
 - Review generated scientific content before publishing it as factual material.
-- Run `branch_merge_orchestrator.py` only after committing or backing up `merge_branches.py`, because it can update that source file automatically.
+- `inspect_missing_topics.py` uses a manually maintained list and can reset completed topics for regeneration.
+- `branch_merge_orchestrator.py` can modify `merge_branches.py` automatically; commit or back up that file before running it.
+- `merge_branches.py` can move article files and update the index; verify mappings before use.
 
 ## License
 
